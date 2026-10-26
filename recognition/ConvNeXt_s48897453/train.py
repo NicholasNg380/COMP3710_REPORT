@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
+from sklearn.metrics import (precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
 from modules import ResNet50
 from dataset import train_loader, val_loader
 
@@ -83,8 +84,6 @@ def ResNet50train():
 
                 val_total += labels.size(0)
 
-        scheduler.step()
-
         val_epoch_loss = (val_loss / len(val_loader.dataset))
 
         val_accuracy = (val_correct / val_total)
@@ -104,6 +103,8 @@ def ResNet50train():
             print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
 
         print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
+
+        scheduler.step()
 
     epochs = range(1, num_epochs + 1)
 
@@ -126,3 +127,88 @@ def ResNet50train():
     plt.legend()
     plt.savefig("resnet50_accuracy.png")
     plt.close()
+
+def evaluate_model(model, data_loader, device):
+    model.eval()
+
+    all_labels = []
+    all_predictions = []
+    all_probabilities = []
+
+    running_loss = 0.0
+    total_samples = 0
+
+    criterion = torch.nn.CrossEntropyLoss()
+
+    with torch.no_grad():
+
+        for images, labels in data_loader:
+
+            images = images.to(device)
+            labels = labels.to(device)
+
+            outputs = model(images)
+
+            loss = criterion(outputs, labels)
+
+            running_loss += loss.item() * images.size(0)
+            total_samples += labels.size(0)
+
+            probabilities = torch.softmax(outputs, dim=1)
+
+            _, predicted = torch.max(outputs, 1)
+
+            all_labels.extend(labels.cpu().tolist())
+
+            all_predictions.extend(predicted.cpu().tolist())
+
+            # NC is class 1 in your current mapping
+            all_probabilities.extend(probabilities[:, 1].cpu().tolist())
+
+    accuracy = (sum(pred == label for pred, label in zip(all_predictions, all_labels)) / len(all_labels))
+
+    precision = precision_score(all_labels, all_predictions, average="macro")
+
+    recall = recall_score( all_labels, all_predictions, average="macro")
+
+    f1 = f1_score( all_labels, all_predictions, average="macro")
+
+    auroc = roc_auc_score( all_labels, all_probabilities)
+
+    cm = confusion_matrix( all_labels, all_predictions )
+
+    average_loss = (running_loss / total_samples)
+
+    return {"loss": average_loss, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1, "auroc": auroc, "confusion_matrix": cm}
+
+if __name__ == "__main__":
+
+    i = input("ResNet or ConvNeXt: ").lower
+
+    if i == "resnet":
+        ResNet50train()
+
+        model = ResNet50(num_classes=2).to(device)
+
+        model.load_state_dict(torch.load("resnet50_best.pth", map_location=device))
+    
+    if i == "convnext":
+        """
+        ConvNeXttrain()
+        
+        model = ConvNeXt(num_classes=2).to(device)
+        
+        model.load_state_dict(torch.load("convnext_best.pth", map_location=device))
+        """
+
+    results = evaluate_model(model, val_loader, device)
+
+    print("\nBest ResNet50 Validation Results")
+    print(f"Loss:      {results['loss']:.4f}")
+    print(f"Accuracy:  {results['accuracy']:.4f}")
+    print(f"Precision: {results['precision']:.4f}")
+    print(f"Recall:    {results['recall']:.4f}")
+    print(f"Macro F1:  {results['f1']:.4f}")
+    print(f"AUROC:     {results['auroc']:.4f}")
+    print("Confusion Matrix:")
+    print(results["confusion_matrix"])
