@@ -19,7 +19,7 @@ class Bottleneck(nn.Module):
         
         self.shortcut = nn.Sequential()
 
-        if stride != 1 or in_channels != out_channels:
+        if stride != 1 or in_channels != out_channels * self.expansion:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels * self.expansion, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(out_channels * self.expansion)
@@ -77,5 +77,20 @@ class ResNet(nn.Module):
         out = self.fc(out)
         return out
 
-    def ResNet50(num_classes=2):
-        return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
+def ResNet50(num_classes=2):
+    return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
+
+model = ResNet50()
+
+x = torch.randn(4, 3, 224, 224)
+
+output = model(x)
+
+print("Input:", x.shape)
+print("Output:", output.shape)
+
+total_params = sum(
+    p.numel() for p in model.parameters()
+)
+
+print("Total parameters:", total_params)
