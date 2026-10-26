@@ -12,6 +12,14 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
 num_epochs = 30
 
+best_val_accuracy = 0.0
+
+train_losses = []
+train_accuracies = []
+
+val_losses = []
+val_accuracies = []
+
 for epoch in range(num_epochs):
 
     model.train()
@@ -43,13 +51,9 @@ for epoch in range(num_epochs):
 
         running_total += labels.size(0)
 
-    epoch_loss = (
-        running_loss / len(train_loader.dataset)
-    )
+    epoch_loss = (running_loss / len(train_loader.dataset))
 
-    epoch_accuracy = (
-        running_correct / running_total
-    )
+    epoch_accuracy = (running_correct / running_total)
 
     model.eval()
 
@@ -79,6 +83,20 @@ for epoch in range(num_epochs):
     val_epoch_loss = (val_loss / len(val_loader.dataset))
 
     val_accuracy = (val_correct / val_total)
+
+    train_losses.append(epoch_loss)
+    train_accuracies.append(epoch_accuracy)
+
+    val_losses.append(val_epoch_loss)
+    val_accuracies.append(val_accuracy)
+
+    if val_accuracy > best_val_accuracy:
+
+        best_val_accuracy = val_accuracy
+
+        torch.save(model.state_dict(), "resnet50_best.pth")
+
+        print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
 
     print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f}"
     )
