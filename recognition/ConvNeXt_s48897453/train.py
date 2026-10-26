@@ -1,104 +1,128 @@
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
 from modules import ResNet50
 from dataset import train_loader, val_loader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = ResNet50(num_classes=2).to(device)
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+def ResNet50train():
+    model = ResNet50(num_classes=2).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-num_epochs = 30
+    num_epochs = 30
 
-best_val_accuracy = 0.0
+    best_val_accuracy = 0.0
 
-train_losses = []
-train_accuracies = []
+    train_losses = []
+    train_accuracies = []
 
-val_losses = []
-val_accuracies = []
+    val_losses = []
+    val_accuracies = []
 
-for epoch in range(num_epochs):
+    for epoch in range(num_epochs):
 
-    model.train()
+        model.train()
 
-    running_loss = 0.0
-    running_correct = 0
-    running_total = 0
+        running_loss = 0.0
+        running_correct = 0
+        running_total = 0
 
-    for images, labels in train_loader:
-
-        images = images.to(device)
-        labels = labels.to(device)
-
-        optimizer.zero_grad()
-
-        outputs = model(images)
-
-        loss = criterion(outputs, labels)
-
-        loss.backward()
-
-        optimizer.step()
-
-        running_loss += loss.item() * images.size(0)
-
-        _, predicted = torch.max(outputs, 1)
-
-        running_correct += (predicted == labels).sum().item()
-
-        running_total += labels.size(0)
-
-    epoch_loss = (running_loss / len(train_loader.dataset))
-
-    epoch_accuracy = (running_correct / running_total)
-
-    model.eval()
-
-    val_loss = 0.0
-    val_correct = 0
-    val_total = 0
-
-    with torch.no_grad():
-
-        for images, labels in val_loader:
+        for images, labels in train_loader:
 
             images = images.to(device)
             labels = labels.to(device)
+
+            optimizer.zero_grad()
 
             outputs = model(images)
 
             loss = criterion(outputs, labels)
 
-            val_loss += (loss.item() * images.size(0))
+            loss.backward()
+
+            optimizer.step()
+
+            running_loss += loss.item() * images.size(0)
 
             _, predicted = torch.max(outputs, 1)
 
-            val_correct += (predicted == labels).sum().item()
+            running_correct += (predicted == labels).sum().item()
 
-            val_total += labels.size(0)
+            running_total += labels.size(0)
 
-    scheduler.step()
+        epoch_loss = (running_loss / len(train_loader.dataset))
 
-    val_epoch_loss = (val_loss / len(val_loader.dataset))
+        epoch_accuracy = (running_correct / running_total)
 
-    val_accuracy = (val_correct / val_total)
+        model.eval()
 
-    train_losses.append(epoch_loss)
-    train_accuracies.append(epoch_accuracy)
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
 
-    val_losses.append(val_epoch_loss)
-    val_accuracies.append(val_accuracy)
+        with torch.no_grad():
 
-    if val_accuracy > best_val_accuracy:
+            for images, labels in val_loader:
 
-        best_val_accuracy = val_accuracy
+                images = images.to(device)
+                labels = labels.to(device)
 
-        torch.save(model.state_dict(), "resnet50_best.pth")
+                outputs = model(images)
 
-        print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
+                loss = criterion(outputs, labels)
 
-    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
+                val_loss += (loss.item() * images.size(0))
+
+                _, predicted = torch.max(outputs, 1)
+
+                val_correct += (predicted == labels).sum().item()
+
+                val_total += labels.size(0)
+
+        scheduler.step()
+
+        val_epoch_loss = (val_loss / len(val_loader.dataset))
+
+        val_accuracy = (val_correct / val_total)
+
+        train_losses.append(epoch_loss)
+        train_accuracies.append(epoch_accuracy)
+
+        val_losses.append(val_epoch_loss)
+        val_accuracies.append(val_accuracy)
+
+        if val_accuracy > best_val_accuracy:
+
+            best_val_accuracy = val_accuracy
+
+            torch.save(model.state_dict(), "resnet50_best.pth")
+
+            print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
+
+        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
+
+    epochs = range(1, num_epochs + 1)
+
+    plt.figure()
+    plt.plot(epochs, train_losses, label="Train Loss")
+    plt.plot(epochs, val_losses, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("ResNet50 Training and Validation Loss")
+    plt.legend()
+    plt.savefig("resnet50_loss.png")
+    plt.close()
+
+    plt.figure()
+    plt.plot(epochs, train_accuracies, label="Train Accuracy")
+    plt.plot(epochs, val_accuracies, label="Validation Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("ResNet50 Training and Validation Accuracy")
+    plt.legend()
+    plt.savefig("resnet50_accuracy.png")
+    plt.close()
