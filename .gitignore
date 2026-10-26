@@ -1,2 +1,5 @@
 .venv/
 ADNI/
+*.pth
+*.pt
+__pycache__/
