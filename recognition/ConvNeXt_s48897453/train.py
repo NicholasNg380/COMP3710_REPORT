@@ -9,6 +9,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = ResNet50(num_classes=2).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
 num_epochs = 30
 
@@ -80,6 +81,8 @@ for epoch in range(num_epochs):
 
             val_total += labels.size(0)
 
+    scheduler.step()
+
     val_epoch_loss = (val_loss / len(val_loader.dataset))
 
     val_accuracy = (val_correct / val_total)
@@ -98,4 +101,4 @@ for epoch in range(num_epochs):
 
         print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
 
-    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f}")
+    print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
