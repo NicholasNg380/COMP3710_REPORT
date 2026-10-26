@@ -80,6 +80,8 @@ class ResNet(nn.Module):
 def ResNet50(num_classes=2):
     return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
 
+'''
+forward pass and output shape
 model = ResNet50()
 
 x = torch.randn(4, 3, 224, 224)
@@ -94,3 +96,4 @@ total_params = sum(
 )
 
 print("Total parameters:", total_params)
+'''

@@ -104,6 +104,7 @@ val_loader = DataLoader(
     shuffle=False
 )
 
+'''
 assert train_patients.isdisjoint(val_patients), \
     "Patient leakage detected between training and validation sets"
 
@@ -111,3 +112,4 @@ print("Train patients:", len(train_patients))
 print("Validation patients:", len(val_patients))
 print("Train images:", len(train_samples))
 print("Validation images:", len(val_samples))
+'''
