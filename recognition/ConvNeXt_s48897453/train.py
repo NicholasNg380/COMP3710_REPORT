@@ -8,7 +8,7 @@ from dataset import train_loader, val_loader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def ResNet50train():
+def train_resnet50():
     model = ResNet50(num_classes=2).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
@@ -17,6 +17,7 @@ def ResNet50train():
     num_epochs = 30
 
     best_val_accuracy = 0.0
+    best_epoch = 0
 
     train_losses = []
     train_accuracies = []
@@ -97,14 +98,18 @@ def ResNet50train():
         if val_accuracy > best_val_accuracy:
 
             best_val_accuracy = val_accuracy
+            best_epoch = epoch + 1
 
             torch.save(model.state_dict(), "resnet50_best.pth")
 
-            print(f"Saved new best model with validation accuracy {best_val_accuracy:.4f}")
+            print(f"Saved new best model at epoch {best_epoch} with validation accuracy {best_val_accuracy:.4f}")
 
         print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
 
         scheduler.step()
+
+    print(f"Best validation accuracy: {best_val_accuracy:.4f} at epoch {best_epoch}"
+)
 
     epochs = range(1, num_epochs + 1)
 
@@ -183,23 +188,28 @@ def evaluate_model(model, data_loader, device):
 
 if __name__ == "__main__":
 
-    i = input("ResNet or ConvNeXt: ").lower
+    i = input("ResNet or ConvNeXt: ").strip().lower()
 
     if i == "resnet":
-        ResNet50train()
+        train_resnet50()
 
         model = ResNet50(num_classes=2).to(device)
 
         model.load_state_dict(torch.load("resnet50_best.pth", map_location=device))
     
-    if i == "convnext":
+    elif i == "convnext":
+        print("ConvNeXt has not been implemented yet.")
+        raise SystemExit
         """
-        ConvNeXttrain()
+        trainConvNeXt()
         
         model = ConvNeXt(num_classes=2).to(device)
         
         model.load_state_dict(torch.load("convnext_best.pth", map_location=device))
         """
+    else:
+        print("Invalid choice. Enter 'resnet' or 'convnext'.")
+        raise SystemExit
 
     results = evaluate_model(model, val_loader, device)
 
