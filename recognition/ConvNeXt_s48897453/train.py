@@ -136,7 +136,7 @@ def train_ResNet50():
 def train_ConvNeXt():
     model = ConvNeXt(num_classes=2).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.05)
 

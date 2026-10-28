@@ -16,10 +16,7 @@ def get_patient_id(image_path):
 def build_patient_split(data_dir, validation_ratio=0.2, seed=42):
     samples = []
 
-    class_map = {
-        "AD": 0,
-        "NC": 1
-    }
+    class_map = {"AD": 0, "NC": 1}
 
     for class_name, label in class_map.items():
         class_dir = data_dir / class_name
@@ -27,11 +24,7 @@ def build_patient_split(data_dir, validation_ratio=0.2, seed=42):
         for image_path in class_dir.glob("*.jpeg"):
             patient_id = get_patient_id(image_path)
 
-            samples.append({
-                "path": image_path,
-                "label": label,
-                "patient_id": patient_id
-            })
+            samples.append({"path": image_path, "label": label, "patient_id": patient_id})
 
     patient_ids = sorted(set(sample["patient_id"] for sample in samples))
 
@@ -43,15 +36,9 @@ def build_patient_split(data_dir, validation_ratio=0.2, seed=42):
     validation_patients = set(patient_ids[:validation_count])
     train_patients = set(patient_ids[validation_count:])
 
-    train_samples = [
-        sample for sample in samples
-        if sample["patient_id"] in train_patients
-    ]
+    train_samples = [sample for sample in samples if sample["patient_id"] in train_patients]
 
-    validation_samples = [
-        sample for sample in samples
-        if sample["patient_id"] in validation_patients
-    ]
+    validation_samples = [sample for sample in samples if sample["patient_id"] in validation_patients]
 
     return train_samples, validation_samples, train_patients, validation_patients
 
@@ -77,32 +64,17 @@ class ADNIDataset(Dataset):
 
 train_samples, val_samples, train_patients, val_patients = build_patient_split(DATA_DIR)
 
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor()
-])
+train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.RandomRotation(5), transforms.RandomAffine(degrees=0, translate=(0.02, 0.02)), transforms.ToTensor()])
 
-train_dataset = ADNIDataset(
-    train_samples,
-    transform=transform
-)
+val_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
 
-val_dataset = ADNIDataset(
-    val_samples,
-    transform=transform
-)
+train_dataset = ADNIDataset(train_samples, transform=train_transform)
 
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=16,
-    shuffle=True
-)
+val_dataset = ADNIDataset(val_samples, transform=val_transform)
 
-val_loader = DataLoader(
-    val_dataset,
-    batch_size=16,
-    shuffle=False
-)
+train_loader = DataLoader(train_dataset, batch_size=16,shuffle=True)
+
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 '''
 assert train_patients.isdisjoint(val_patients), \
