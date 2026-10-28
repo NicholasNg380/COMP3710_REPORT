@@ -122,6 +122,8 @@ class ConvNeXtBlock(nn.Module):
         # 4C -> C
         self.reduce = nn.Linear(4 * dim, dim)
 
+        self.gamma = nn.Parameter(1e-6 * torch.ones(dim))
+
     def forward(self, x):
 
         residual = x
@@ -140,6 +142,8 @@ class ConvNeXtBlock(nn.Module):
         x = self.gelu(x)
 
         x = self.reduce(x)
+
+        x = self.gamma * x
 
         # [B,H,W,C] -> [B,C,H,W]
         x = x.permute(0, 3, 1, 2)
@@ -231,7 +235,7 @@ total_params = sum(
 )
 
 print("Total parameters:", total_params)
-
+'''
 model = ConvNeXt()
 
 x = torch.randn(4, 3, 224, 224)
@@ -244,4 +248,3 @@ print("Output:", output.shape)
 total_params = sum(p.numel() for p in model.parameters())
 
 print("Total parameters:", total_params)
-'''

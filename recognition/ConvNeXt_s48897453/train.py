@@ -318,7 +318,7 @@ if __name__ == "__main__":
 
     results = evaluate_model(model, val_loader, device)
 
-    print("\nBest ResNet50 Validation Results")
+    print(f"\nBest {i} Validation Results")
     print(f"Loss:      {results['loss']:.4f}")
     print(f"Accuracy:  {results['accuracy']:.4f}")
     print(f"Precision: {results['precision']:.4f}")
