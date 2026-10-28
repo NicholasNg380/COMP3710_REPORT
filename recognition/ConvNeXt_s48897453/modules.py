@@ -80,6 +80,141 @@ class ResNet(nn.Module):
 def ResNet50(num_classes=2):
     return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
 
+class LayerNorm(nn.Module):
+
+    def __init__(self, channels, eps=1e-6):
+        super().__init__()
+
+        self.norm = nn.LayerNorm(
+            channels,
+            eps=eps
+        )
+
+    def forward(self, x):
+
+        # [B, C, H, W] -> [B, H, W, C]
+        x = x.permute(0, 2, 3, 1)
+
+        x = self.norm(x)
+
+        # [B, H, W, C] -> [B, C, H, W]
+        x = x.permute(0, 3, 1, 2)
+
+        return x
+
+class ConvNeXtBlock(nn.Module):
+
+    def __init__(self, dim):
+        super().__init__()
+
+        # 7x7 depthwise convolution
+        self.depthwise_conv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)
+
+        # One LayerNorm per block
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+
+        # Inverted bottleneck: C -> 4C
+        self.expand = nn.Linear(dim, 4 * dim)
+
+        # Single activation used in the block
+        self.gelu = nn.GELU()
+
+        # 4C -> C
+        self.reduce = nn.Linear(4 * dim, dim)
+
+    def forward(self, x):
+
+        residual = x
+
+        # Spatial mixing
+        x = self.depthwise_conv(x)
+
+        # [B,C,H,W] -> [B,H,W,C]
+        x = x.permute(0, 2, 3, 1)
+
+        x = self.norm(x)
+
+        # Channel mixing
+        x = self.expand(x)
+
+        x = self.gelu(x)
+
+        x = self.reduce(x)
+
+        # [B,H,W,C] -> [B,C,H,W]
+        x = x.permute(0, 3, 1, 2)
+
+        # Residual connection
+        x = x + residual
+
+        return x
+
+class ConvNeXt(nn.Module):
+
+    def __init__(self, num_classes=2, depths=(3, 3, 9, 3), dims=(96, 192, 384, 768)):
+        super().__init__()
+
+        # Patchify stem:
+        # 4x4 non-overlapping convolution, stride 4
+        self.stem = nn.Sequential(nn.Conv2d(3, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
+
+        # Four ConvNeXt stages
+        self.stages = nn.ModuleList()
+
+        for stage_index in range(4):
+
+            blocks = []
+
+            for _ in range(depths[stage_index]):
+                blocks.append(ConvNeXtBlock(dims[stage_index]))
+
+            self.stages.append(nn.Sequential(*blocks))
+
+        # Separate downsampling layers between stages
+        self.downsample_layers = nn.ModuleList()
+
+        for i in range(3):
+
+            self.downsample_layers.append(
+                nn.Sequential(LayerNorm(dims[i]), nn.Conv2d(dims[i], dims[i + 1], kernel_size=2, stride=2)))
+
+        # Final LayerNorm after global average pooling
+        self.norm = nn.LayerNorm(dims[-1], eps=1e-6)
+
+        # AD vs NC
+        self.head = nn.Linear(dims[-1], num_classes)
+
+    def forward(self, x):
+
+        # Stem
+        x = self.stem(x)
+
+        # Stage 1
+        x = self.stages[0](x)
+
+        # Stage 2
+        x = self.downsample_layers[0](x)
+        x = self.stages[1](x)
+
+        # Stage 3
+        x = self.downsample_layers[1](x)
+        x = self.stages[2](x)
+
+        # Stage 4
+        x = self.downsample_layers[2](x)
+        x = self.stages[3](x)
+
+        # Global average pooling
+        x = x.mean(dim=[2, 3])
+
+        # Final normalisation
+        x = self.norm(x)
+
+        # Classification head
+        x = self.head(x)
+
+        return x
+
 '''
 forward pass and output shape
 model = ResNet50()
@@ -97,3 +232,16 @@ total_params = sum(
 
 print("Total parameters:", total_params)
 '''
+
+model = ConvNeXt()
+
+x = torch.randn(4, 3, 224, 224)
+
+output = model(x)
+
+print("Input:", x.shape)
+print("Output:", output.shape)
+
+total_params = sum(p.numel() for p in model.parameters())
+
+print("Total parameters:", total_params)
