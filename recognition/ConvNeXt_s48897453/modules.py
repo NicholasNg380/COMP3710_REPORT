@@ -102,10 +102,33 @@ class LayerNorm(nn.Module):
 
         return x
 
+class DropPath(nn.Module):
+
+    def __init__(self, drop_prob=0.0):
+        super().__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+
+        keep_prob = 1.0 - self.drop_prob
+
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+
+        random_tensor = ( keep_prob + torch.rand( shape, dtype=x.dtype, device=x.device))
+
+        random_tensor.floor_()
+
+        return (x / keep_prob) * random_tensor
+
 class ConvNeXtBlock(nn.Module):
 
-    def __init__(self, dim):
+    def __init__(self, dim, drop_path=0.0):
         super().__init__()
+
+        self.drop_path = DropPath(drop_path)
 
         # 7x7 depthwise convolution
         self.depthwise_conv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)
@@ -149,28 +172,35 @@ class ConvNeXtBlock(nn.Module):
         x = x.permute(0, 3, 1, 2)
 
         # Residual connection
-        x = x + residual
+        x = self.drop_path(x) + residual
 
         return x
 
 class ConvNeXt(nn.Module):
 
-    def __init__(self, num_classes=2, depths=(3, 3, 9, 3), dims=(96, 192, 384, 768)):
+    def __init__(self, num_classes=2, depths=(3, 3, 9, 3), dims=(96, 192, 384, 768), drop_path_rate=0.1):
         super().__init__()
-
         # Patchify stem:
         # 4x4 non-overlapping convolution, stride 4
         self.stem = nn.Sequential(nn.Conv2d(3, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
 
+        total_blocks = sum(depths)
+
+        drop_rates = torch.linspace(0, drop_path_rate, total_blocks).tolist()
+
         # Four ConvNeXt stages
         self.stages = nn.ModuleList()
+
+        block_index = 0
 
         for stage_index in range(4):
 
             blocks = []
 
             for _ in range(depths[stage_index]):
-                blocks.append(ConvNeXtBlock(dims[stage_index]))
+                blocks.append(ConvNeXtBlock(dims[stage_index], drop_path=drop_rates[block_index]))
+
+                block_index += 1
 
             self.stages.append(nn.Sequential(*blocks))
 
@@ -237,6 +267,8 @@ total_params = sum(
 print("Total parameters:", total_params)
 '''
 model = ConvNeXt()
+
+model.eval()
 
 x = torch.randn(4, 3, 224, 224)
 
