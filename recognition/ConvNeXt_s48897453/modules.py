@@ -231,7 +231,6 @@ total_params = sum(
 )
 
 print("Total parameters:", total_params)
-'''
 
 model = ConvNeXt()
 
@@ -245,3 +244,4 @@ print("Output:", output.shape)
 total_params = sum(p.numel() for p in model.parameters())
 
 print("Total parameters:", total_params)
+'''
