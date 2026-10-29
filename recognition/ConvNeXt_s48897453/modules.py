@@ -216,6 +216,7 @@ class ConvNeXt(nn.Module):
         self.norm = nn.LayerNorm(dims[-1], eps=1e-6)
 
         # AD vs NC
+        self.dropout = nn.Dropout(0.4)
         self.head = nn.Linear(dims[-1], num_classes)
 
     def forward(self, x):
@@ -245,7 +246,7 @@ class ConvNeXt(nn.Module):
         x = self.norm(x)
 
         # Classification head
-        x = self.head(x)
+        x = self.head(self.dropout(x))
 
         return x
 

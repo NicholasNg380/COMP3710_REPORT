@@ -79,21 +79,38 @@ class ADNIDataset(Dataset):
 
         return image, label
 
+class PerImageStandardise:
+    """Z-score each image using its own mean/std (operates on a tensor)."""
+    def __init__(self, eps=1e-5):
+        self.eps = eps
+
+    def __call__(self, x):
+        return (x - x.mean()) / (x.std() + self.eps)
+
+NORM = PerImageStandardise()
+
 train_samples, val_samples, train_patients, val_patients = build_patient_split(DATA_DIR)
 
 test_samples = load_test_samples(TEST_DIR)
 
-train_transform = transforms.Compose([
+"""train_transform = transforms.Compose([
     transforms.Resize((224, 224)),
-    transforms.RandomResizedCrop(224, scale=(0.75, 1.0), ratio=(0.9, 1.1)),
-    transforms.RandomRotation(10),
-    transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.3, contrast=0.3),
+    transforms.RandomRotation(5),
+    transforms.RandomAffine(
+        degrees=0,
+        translate=(0.02, 0.02)
+    ),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5], std=[0.5]),   # use the same in val/test
-    transforms.RandomErasing(p=0.25),
+    NORM
+])"""
+
+
+train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.RandomRotation(5), transforms.RandomAffine(degrees=0, translate=(0.02, 0.02)), transforms.ToTensor()])
+
+val_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor()
 ])
-val_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
 
 test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
 

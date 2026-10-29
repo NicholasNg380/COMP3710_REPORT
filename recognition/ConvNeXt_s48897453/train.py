@@ -3,7 +3,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import time
 
-from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
+from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, balanced_accuracy_score)
 from modules import ResNet50, ConvNeXt
 from dataset import train_loader, val_loader, test_loader
 
@@ -94,7 +94,7 @@ def train_ResNet50():
                 val_loss += (loss.item() * images.size(0))
 
                 _, predicted = torch.max(outputs, 1)
-
+                
                 val_correct += (predicted == labels).sum().item()
 
                 val_total += labels.size(0)
@@ -156,8 +156,11 @@ def train_ConvNeXt():
 
     num_epochs = 30
 
-    best_val_accuracy = 0.0
+    best_val_bal_acc = 0.0
     best_epoch = 0
+
+    patience = 10
+    epochs_since_improvement = 0
 
     train_losses = []
     train_accuracies = []
@@ -222,6 +225,9 @@ def train_ConvNeXt():
         val_correct = 0
         val_total = 0
 
+        val_labels = []
+        val_predictions = []
+
         with torch.no_grad():
 
             for images, labels in val_loader:
@@ -237,6 +243,10 @@ def train_ConvNeXt():
 
                 _, predicted = torch.max(outputs, 1)
 
+                val_labels.extend(labels.cpu().tolist())
+                
+                val_predictions.extend(predicted.cpu().tolist())
+
                 val_correct += (predicted == labels).sum().item()
 
                 val_total += labels.size(0)
@@ -245,13 +255,15 @@ def train_ConvNeXt():
 
         val_accuracy = (val_correct / val_total)
 
+        val_bal_acc = balanced_accuracy_score(val_labels, val_predictions)
+
         train_losses.append(epoch_loss)
         train_accuracies.append(epoch_accuracy)
 
         val_losses.append(val_epoch_loss)
         val_accuracies.append(val_accuracy)
 
-        if val_accuracy > best_val_accuracy:
+        """if val_accuracy > best_val_accuracy:
 
             best_val_accuracy = val_accuracy
             best_epoch = epoch + 1
@@ -259,16 +271,44 @@ def train_ConvNeXt():
             torch.save(model.state_dict(),"convnext_best.pth")
 
             print(f"Saved new best ConvNeXt model at epoch {best_epoch} with validation accuracy {best_val_accuracy:.4f}"
+            )"""
+
+        if val_bal_acc > best_val_bal_acc:
+
+            best_val_bal_acc = val_bal_acc
+            best_epoch = epoch + 1
+
+            epochs_since_improvement = 0
+
+            torch.save(
+                model.state_dict(),
+                "convnext_best.pth"
             )
 
-        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
+            print(
+                f"Saved new best model at epoch "
+                f"{best_epoch} "
+                f"(val balanced acc "
+                f"{best_val_bal_acc:.4f}, "
+                f"val acc {val_accuracy:.4f})"
+            )
+        else:
+            epochs_since_improvement += 1
+
+
+        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - Val Balance Accuracy {val_bal_acc:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
 
         scheduler.step()
 
-    print(f"Best ConvNeXt validation accuracy: {best_val_accuracy:.4f} at epoch {best_epoch}"
+        if epochs_since_improvement >= patience:
+            print(f"Early stopping at epoch {epoch+1} (no val loss improvement for {early_stopping.patience} epochs)")
+            break
+
+    print(f"Best ConvNeXt validation balanced accuracy: {best_val_bal_acc:.4f} at epoch {best_epoch}"
     )
 
-    epochs = range(1, num_epochs + 1)
+    #epochs = range(1, num_epochs + 1)
+    epochs = range(1, len(train_losses) + 1)
     
     plt.figure()
     plt.plot(epochs, train_losses, label="Train Loss")
