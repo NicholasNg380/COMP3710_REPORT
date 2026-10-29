@@ -193,6 +193,13 @@ def train_ConvNeXt():
 
             scaler.scale(loss).backward()
 
+            scaler.unscale_(optimizer)
+
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                max_norm=1.0
+            )
+
             scaler.step(optimizer)
 
             scaler.update()
@@ -456,6 +463,8 @@ if __name__ == "__main__":
 
         elif i == "convnext":
             train_ConvNeXt()
+
+        raise SystemExit
 
     if i == "resnet":
         model = ResNet50(num_classes=2).to(device)
