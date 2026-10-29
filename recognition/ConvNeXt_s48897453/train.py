@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
 from modules import ResNet50, ConvNeXt
-from dataset import train_loader, val_loader
+from dataset import train_loader, val_loader, test_loader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -240,6 +240,28 @@ def train_ConvNeXt():
     print(f"Best ConvNeXt validation accuracy: {best_val_accuracy:.4f} at epoch {best_epoch}"
     )
 
+    epochs = range(1, num_epochs + 1)
+    
+    plt.figure()
+    plt.plot(epochs, train_losses, label="Train Loss")
+    plt.plot(epochs, val_losses, label="Validation Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("ConvNeXt Training and Validation Loss")
+    plt.legend()
+    plt.savefig("convnext_loss.png")
+    plt.close()
+
+    plt.figure()
+    plt.plot(epochs, train_accuracies, label="Train Accuracy")
+    plt.plot(epochs, val_accuracies, label="Validation Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("ConvNeXt Training and Validation Accuracy")
+    plt.legend()
+    plt.savefig("convnext_accuracy.png")
+    plt.close()
+
 def evaluate_model(model, data_loader, device):
     model.eval()
 
@@ -346,7 +368,7 @@ if __name__ == "__main__":
         print("Invalid choice. Enter 'resnet' or 'convnext'.")
         raise SystemExit
 
-    results = evaluate_model(model, val_loader, device)
+    results = evaluate_model(model, test_loader, device)
 
     analyse_confidence(results)
 
