@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import (precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
+from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
 from modules import ResNet50, ConvNeXt
 from dataset import train_loader, val_loader
 
@@ -246,6 +246,8 @@ def evaluate_model(model, data_loader, device):
     all_labels = []
     all_predictions = []
     all_probabilities = []
+    all_confidences = []
+    all_correct = []
 
     running_loss = 0.0
     total_samples = 0
@@ -263,8 +265,12 @@ def evaluate_model(model, data_loader, device):
 
             loss = criterion(outputs, labels)
 
+            correct = predicted == labels
+
             running_loss += loss.item() * images.size(0)
             total_samples += labels.size(0)
+
+            confidence, predicted = torch.max(probabilities, dim=1)
 
             probabilities = torch.softmax(outputs, dim=1)
 
@@ -273,6 +279,10 @@ def evaluate_model(model, data_loader, device):
             all_labels.extend(labels.cpu().tolist())
 
             all_predictions.extend(predicted.cpu().tolist())
+            
+            all_confidences.extend(confidence.cpu().tolist())
+            
+            all_correct.extend(correct.cpu().tolist())
 
             # NC is class 1 in your current mapping
             all_probabilities.extend(probabilities[:, 1].cpu().tolist())
@@ -285,13 +295,33 @@ def evaluate_model(model, data_loader, device):
 
     f1 = f1_score( all_labels, all_predictions, average="macro")
 
+    precision_per_class = precision_score(all_labels, all_predictions, average=None, zero_division=0)
+
+    recall_per_class = recall_score(all_labels, all_predictions, average=None, zero_division=0)
+
     auroc = roc_auc_score( all_labels, all_probabilities)
 
     cm = confusion_matrix( all_labels, all_predictions )
 
     average_loss = (running_loss / total_samples)
 
-    return {"loss": average_loss, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1, "auroc": auroc, "confusion_matrix": cm}
+    return {"loss": average_loss, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1, "precision_per_class": precision_per_class, 
+            "recall_per_class": recall_per_class, "auroc": auroc, "confusion_matrix": cm, "labels": all_labels, "predictions": all_predictions, 
+            "confidences": all_confidences, "correct": all_correct}
+
+def analyse_confidence(results):
+
+    correct_confidences = [confidence for confidence, correct in zip(results["confidences"], results["correct"]) if correct]
+
+    incorrect_confidences = [confidence for confidence, correct in zip(results["confidences"],results["correct"]) if not correct]
+
+    average_correct = (sum(correct_confidences) / len(correct_confidences))
+
+    average_incorrect = (sum(incorrect_confidences) / len(incorrect_confidences))
+
+    print(f"Average confidence when correct: {average_correct:.4f}")
+
+    print(f"Average confidence when incorrect: {average_incorrect:.4f}")
 
 if __name__ == "__main__":
 
@@ -318,6 +348,8 @@ if __name__ == "__main__":
 
     results = evaluate_model(model, val_loader, device)
 
+    analyse_confidence(results)
+
     print(f"\nBest {i} Validation Results")
     print(f"Loss:      {results['loss']:.4f}")
     print(f"Accuracy:  {results['accuracy']:.4f}")
@@ -325,5 +357,9 @@ if __name__ == "__main__":
     print(f"Recall:    {results['recall']:.4f}")
     print(f"Macro F1:  {results['f1']:.4f}")
     print(f"AUROC:     {results['auroc']:.4f}")
+    print(f"AD Precision: {results['precision_per_class'][0]:.4f}")
+    print(f"NC Precision: {results['precision_per_class'][1]:.4f}")
+    print(f"AD Recall: {results['recall_per_class'][0]:.4f}")
+    print(f"NC Recall: {results['recall_per_class'][1]:.4f}")
     print("Confusion Matrix:")
     print(results["confusion_matrix"])
