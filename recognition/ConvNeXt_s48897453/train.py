@@ -151,7 +151,7 @@ def train_ConvNeXt():
     model = ConvNeXt(num_classes=2).to(device)
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.05)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-2)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
 
     num_epochs = 30

@@ -8,7 +8,7 @@ Weight decay: 0.05
 Scheduler: CosineAnnealingLR
 Epochs: 30
 
-Best ConvNeXt validation accuracy: 0.8433 at epoch 22
+Best ConvNeXt validation accuracy: 0.8433 at epoch 25
 
 Best convnext Test Results
 Loss:      0.7469
