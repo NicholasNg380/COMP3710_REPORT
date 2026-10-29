@@ -9,8 +9,12 @@ from dataset import train_loader, val_loader, test_loader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+use_amp = device.type == "cuda"
+
+torch.backends.cudnn.benchmark = True
 def train_ResNet50():
     model = ResNet50(num_classes=2).to(device)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
@@ -36,18 +40,27 @@ def train_ResNet50():
 
         for images, labels in train_loader:
 
-            images = images.to(device)
-            labels = labels.to(device)
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
 
             optimizer.zero_grad()
 
-            outputs = model(images)
+            with torch.amp.autocast(
+                device_type="cuda",
+                enabled=use_amp
+            ):
+                outputs = model(images)
 
-            loss = criterion(outputs, labels)
+                loss = criterion(
+                    outputs,
+                    labels
+                )
 
-            loss.backward()
+            scaler.scale(loss).backward()
 
-            optimizer.step()
+            scaler.step(optimizer)
+
+            scaler.update()
 
             running_loss += loss.item() * images.size(0)
 
@@ -136,11 +149,9 @@ def train_ResNet50():
 
 def train_ConvNeXt():
     model = ConvNeXt(num_classes=2).to(device)
-
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.05)
-
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.05)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=30)
 
     num_epochs = 30
@@ -164,18 +175,27 @@ def train_ConvNeXt():
 
         for images, labels in train_loader:
 
-            images = images.to(device)
-            labels = labels.to(device)
+            images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
 
             optimizer.zero_grad()
 
-            outputs = model(images)
+            with torch.amp.autocast(
+                device_type="cuda",
+                enabled=use_amp
+            ):
+                outputs = model(images)
 
-            loss = criterion(outputs, labels)
+                loss = criterion(
+                    outputs,
+                    labels
+                )
 
-            loss.backward()
+            scaler.scale(loss).backward()
 
-            optimizer.step()
+            scaler.step(optimizer)
+
+            scaler.update()
 
             running_loss += (loss.item() * images.size(0))
 
@@ -288,14 +308,14 @@ def evaluate_model(model, data_loader, device):
 
             loss = criterion(outputs, labels)
 
+            probabilities = torch.softmax(outputs, dim=1)
+
+            confidence, predicted = torch.max(probabilities, dim=1)
+
             correct = predicted == labels
 
             running_loss += loss.item() * images.size(0)
             total_samples += labels.size(0)
-
-            confidence, predicted = torch.max(probabilities, dim=1)
-
-            probabilities = torch.softmax(outputs, dim=1)
 
             _, predicted = torch.max(outputs, 1)
 
@@ -310,7 +330,7 @@ def evaluate_model(model, data_loader, device):
             # NC is class 1 in your current mapping
             all_probabilities.extend(probabilities[:, 1].cpu().tolist())
 
-    accuracy = (sum(pred == label for pred, label in zip(all_predictions, all_labels)) / len(all_labels))
+    accuracy = accuracy_score(all_labels, all_predictions)
 
     precision = precision_score(all_labels, all_predictions, average="macro")
 
@@ -428,17 +448,21 @@ if __name__ == "__main__":
 
     i = input("ResNet or ConvNeXt: ").strip().lower()
 
-    if i == "resnet":
-        train_ResNet50()
+    mode = input("Train or evaluate: ").strip().lower()
 
+    if mode == "train":
+        if i == "resnet":
+            train_ResNet50()
+
+        elif i == "convnext":
+            train_ConvNeXt()
+
+    if i == "resnet":
         model = ResNet50(num_classes=2).to(device)
 
         model.load_state_dict(torch.load("resnet50_best.pth", map_location=device))
     
     elif i == "convnext":
-        
-        train_ConvNeXt()
-        
         model = ConvNeXt(num_classes=2).to(device)
         
         model.load_state_dict(torch.load("convnext_best.pth", map_location=device))
@@ -451,7 +475,7 @@ if __name__ == "__main__":
 
     analyse_confidence(results)
 
-    print(f"\nBest {i} Validation Results")
+    print(f"\nBest {i} Test Results")
     print(f"Loss:      {results['loss']:.4f}")
     print(f"Accuracy:  {results['accuracy']:.4f}")
     print(f"Precision: {results['precision']:.4f}")

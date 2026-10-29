@@ -95,7 +95,7 @@ val_dataset = ADNIDataset(val_samples, transform=val_transform)
 
 test_dataset = ADNIDataset(test_samples, transform=test_transform)
 
-train_loader = DataLoader(train_dataset, batch_size=16,shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
 
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
@@ -112,7 +112,6 @@ print("Test patients:", len(test_patients))
 print("Train images:", len(train_samples))
 print("Validation images:", len(val_samples))
 print("Test images:", len(test_samples))
-'''
 
 test_patients = set(
     sample["patient_id"]
@@ -127,3 +126,4 @@ assert val_patients.isdisjoint(test_patients), \
 
 print("Test patients:", len(test_patients))
 print("Test images:", len(test_samples))
+'''
