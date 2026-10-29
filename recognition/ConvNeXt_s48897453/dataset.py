@@ -71,7 +71,7 @@ class ADNIDataset(Dataset):
     def __getitem__(self, index):
         sample = self.samples[index]
 
-        image = Image.open(sample["path"]).convert("RGB")
+        image = Image.open(sample["path"]).convert("L")
         label = sample["label"]
 
         if self.transform:

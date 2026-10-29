@@ -182,7 +182,7 @@ class ConvNeXt(nn.Module):
         super().__init__()
         # Patchify stem:
         # 4x4 non-overlapping convolution, stride 4
-        self.stem = nn.Sequential(nn.Conv2d(3, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
+        self.stem = nn.Sequential(nn.Conv2d(1, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
 
         total_blocks = sum(depths)
 
