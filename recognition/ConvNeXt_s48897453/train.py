@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import time
 
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,confusion_matrix)
 from modules import ResNet50, ConvNeXt
@@ -339,11 +340,89 @@ def analyse_confidence(results):
 
     average_correct = (sum(correct_confidences) / len(correct_confidences))
 
-    average_incorrect = (sum(incorrect_confidences) / len(incorrect_confidences))
+    if len(incorrect_confidences) > 0:
+        average_incorrect = (sum(incorrect_confidences) / len(incorrect_confidences))
+    else:
+        average_incorrect = 0.0
 
     print(f"Average confidence when correct: {average_correct:.4f}")
 
     print(f"Average confidence when incorrect: {average_incorrect:.4f}")
+
+    return (correct_confidences, incorrect_confidences)
+
+def count_parameters(model):
+
+    return sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
+
+def measure_peak_vram(model, data_loader, device):
+
+    if device.type != "cuda":
+        print("GPU VRAM measurement requires CUDA.")
+        return None
+
+    model.eval()
+
+    torch.cuda.empty_cache()
+
+    torch.cuda.reset_peak_memory_stats(device)
+
+    images, _ = next(iter(data_loader))
+
+    images = images.to(device)
+
+    with torch.no_grad():
+        _ = model(images)
+
+    torch.cuda.synchronize()
+
+    peak_memory_bytes = (torch.cuda.max_memory_allocated(device))
+
+    peak_memory_mb = (peak_memory_bytes / (1024 ** 2))
+
+    return peak_memory_mb
+
+def measure_inference_latency(model, data_loader, device, repetitions=20):
+
+    model.eval()
+
+    images, _ = next(iter(data_loader))
+
+    images = images.to(device)
+
+    # Warm-up
+    with torch.no_grad():
+
+        for _ in range(5):
+
+            _ = model(images)
+
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+
+    start_time = time.perf_counter()
+
+    with torch.no_grad():
+
+        for _ in range(repetitions):
+
+            _ = model(images)
+
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+
+    end_time = time.perf_counter()
+
+    total_time = (end_time - start_time)
+
+    average_batch_time = (total_time / repetitions)
+
+    latency_per_image = (average_batch_time / images.size(0))
+
+    latency_ms = (latency_per_image * 1000)
+
+    return latency_ms
+
 
 if __name__ == "__main__":
 
@@ -385,3 +464,15 @@ if __name__ == "__main__":
     print(f"NC Recall: {results['recall_per_class'][1]:.4f}")
     print("Confusion Matrix:")
     print(results["confusion_matrix"])
+
+    parameter_count = count_parameters(model)
+    print(f"\nTrainable parameters: {parameter_count:,}")
+
+    peak_vram = measure_peak_vram(model, test_loader,device)
+
+    if peak_vram is not None:
+        print(f"Peak GPU VRAM: {peak_vram:.2f} MB")
+
+    latency = measure_inference_latency(model, test_loader, device)
+
+    print(f"Inference latency: {latency:.3f} ms/image")

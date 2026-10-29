@@ -1,20 +1,13 @@
-from pathlib import Path
-
 import torch
+
+from pathlib import Path
 from PIL import Image
 from torchvision import transforms
-
 from modules import ConvNeXt
 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
 CLASS_NAMES = {0: "AD", 1: "NC"}
-
-
 transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
-
 
 def load_model(model_path):
 
@@ -47,11 +40,7 @@ def predict_image(model, image_path):
     predicted_class = prediction.item()
     confidence = confidence.item()
 
-    return (
-        predicted_class,
-        confidence,
-        probabilities.squeeze(0).cpu()
-    )
+    return (predicted_class, confidence, probabilities.squeeze(0).cpu())
 
 
 if __name__ == "__main__":
