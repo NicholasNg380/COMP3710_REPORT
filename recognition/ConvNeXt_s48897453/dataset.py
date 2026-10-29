@@ -83,8 +83,16 @@ train_samples, val_samples, train_patients, val_patients = build_patient_split(D
 
 test_samples = load_test_samples(TEST_DIR)
 
-train_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.RandomRotation(5), transforms.RandomAffine(degrees=0, translate=(0.02, 0.02)), transforms.ToTensor()])
-
+train_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.RandomResizedCrop(224, scale=(0.75, 1.0), ratio=(0.9, 1.1)),
+    transforms.RandomRotation(10),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.3, contrast=0.3),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5], std=[0.5]),   # use the same in val/test
+    transforms.RandomErasing(p=0.25),
+])
 val_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
 
 test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
