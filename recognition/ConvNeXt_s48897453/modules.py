@@ -178,11 +178,11 @@ class ConvNeXtBlock(nn.Module):
 
 class ConvNeXt(nn.Module):
 
-    def __init__(self, num_classes=2, depths=(3, 3, 9, 3), dims=(96, 192, 384, 768), drop_path_rate=0.1):
+    def __init__(self, in_channels=1, num_classes=2, depths=(3, 3, 9, 3), dims=(96, 192, 384, 768), drop_path_rate=0.1):
         super().__init__()
         # Patchify stem:
         # 4x4 non-overlapping convolution, stride 4
-        self.stem = nn.Sequential(nn.Conv2d(1, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
+        self.stem = nn.Sequential(nn.Conv2d(in_channels, dims[0], kernel_size=4, stride=4), LayerNorm(dims[0]))
 
         total_blocks = sum(depths)
 
