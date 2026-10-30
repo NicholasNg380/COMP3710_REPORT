@@ -35,7 +35,7 @@ Acceptance Criteria:
 •	Measure parameter count, GPU memory and inference time.
 
 ### Model Choice & Course Concepts
-ConvNeXt was selected to be used to compare against the CNN architecture. The ConvNeXt model is listed as a Hard Difficulty model. A basic CNN will be used as a baseline to compare the ConvNeXt and evaluated under identical conditions. Convolutional feature extraction, overfitting, classification metrics, and other course related content will be useful when comparting baseline models using the same data.
+ConvNeXt was selected to be used to compare against the CNN architecture. The ConvNeXt model is listed as a Hard Difficulty model. A basic CNN will be used as a baseline to compare the ConvNeXt and evaluated using the same metrics. Convolutional feature extraction, overfitting, classification metrics, and other course related content will be useful when comparting baseline models using the same data.
 
 ### Preliminary Feasibility Evidence
 The ADNI dataset contained 30520 MRI slices with the training set containing 21520 slices (10400 AD and 11120 CN), while the test set contained 9000 slices (4460 AD and 4540 CN).  A simple CNN was ran with 23714 trainable parameters and completed a 20-batch CUDA smoke test. The average loss was 0.6938, with training times of 0.93 seconds, and a peak allocated GPU memory of around 0.190GB
@@ -80,6 +80,18 @@ ADNI/
 
 The supplied test directory is kept separate from model training. The train data is split and ensured that there is no overlap between train and validation datasets.
 
+### Training, Validation and Test Split
+As the dataset contain multiple MRI slices of the same patient, a normal random image level split would create a risk of causing patient level data leakage. To prevent this, the patient identifier is gathered from the file name with it being the first set of numbers. The supplied training data set was then divided into a patient level split of 80/20 with the split being training and validation respectively. 
+
+The splits were:
+
+| Split      | Patients | Images | AD   | NC   |
+| ---------- | -------- | ------ | ---- | ---- |
+| Training   | 861      | 17 220 | 8320 | 8900 |
+| Validation | 215      | 4300   | 2080 | 2200 |
+| Test       | 450      | 9000   | 4460 | 4540 |
+
+
 ## Dependencies
 Ensure appropriate libraries are installed. 
 	torch 2.14.1+cu130
@@ -101,9 +113,173 @@ For both ConvNeXt and ResNet50:
 - test dataset
 are used.
 
+## Example Inputs and Outputs
+### Example Inputs
+The model takes a grey-scale of an MRI slice as input. An ADNI image has the dimension 256 x 240 pixels and an example filename "264355_53.jpeg" where "264355" is the patient identifier and the other number is the image slice. During preprocessing, the image is converted into grey-scale and resized to 1 x 244 x 244.
+
+To classify an image, predict.py can be run.
+
+### Example Output
+A prediction outputs a class label and the probabilities of the two classes:
+```
+Prediction Results
+
+Predicted class: NC
+Confidence: 0.9511
+AD probability: 0.0489
+NC probability: 0.9511
+```
+
+# Analysis
+The importance of this report was to determine whether or not if the addition complexity of ConvNeXt would provide an advantage over the ResNet50 baseline for Alzheimer's Disease classification, and whether or not the model confidence can be trusted when deciding which prediction may need human review.
+
+Both models were evaluated using the same patient test split and the same preprocessing and evaluation metrics.
+## Quantitative benchmarking
+
+| Metric          | ResNet50 | ConvNeXt |
+| --------------- | -------- | -------- |
+| Test Accuracy   | 0.7501   | 0.7112   |
+| Macro Precision | 0.7873   | 0.7227   |
+| Macro Recall    | 0.7485   | 0.7102   |
+| Macro F1        | 0.7409   | 0.7068   |
+| AUROC           | 0.8347   | 0.7829   |
+| AD Precision    | 0.8886   | 0.7710   |
+| NC Precision    | 0.6861   | 0.6743   |
+| AD Recall       | 0.5668   | 0.5935   |
+| NC Recall       | 0.9302   | 0.8269   |
+As demonstrated in the results, ResNet50 produced stronger result compare to ConvNeXt with the test accuracy being 75.01% compared to 71.12%. It is also shown that ResNet50 had a higher Macro F1 and AUROC, indicating a stronger discrimination between AD and NC.
+### ResNet50 Confusion Matrix
+```
+True AD predicted AD: 2528 
+True AD predicted NC: 1932 
+True NC predicted AD: 317 
+True NC predicted NC: 4223
+```
+
+### ConvNeXt Confusion Matrix
+```
+True AD predicted AD: 2647 
+True AD predicted NC: 1813 
+True NC predicted AD: 786 
+True NC predicted NC: 3754
+```
+
+As seen though both confusion matrices, there is higher recall for NC than AD. This means that AD to NC false negatives are a significant weakness. 
+
+## Training and Validation Performance
+The best model was selected using validation balance accuracy instead of normal validation accuracy. This was to allow for equal importance between the AD and NC classes. 30 epochs were ran but if the validation balance accuracy did not improve for 10 consecutive epochs, then it would stop early.
+### ResNet50
+```
+Best validation balanced accuracy: 0.9210
+Best epoch: 15
+Epochs completed: 25
+```
+
+### Training Curves
+#### ResNet50 training and validation accuracy
+![ResNet50_training_validation_accuracy](Images/resnet50_accuracy.png)
+
+As show in the accuracy curve, ResNet50 learned the training data quickly, whilst it approached 1.0. The validation accuracy was steadily increasing whilst bouncing between 0.5 and 0.85, but became more stable at around 12 epochs approaching 0.9 accuracy. This gape between the training and validation accuracy indicates the the training data was fitted more coley compared to the unseen validation data.
+
+#### ResNet50 training and validation Loss
+![ResNet50_training_validation_loss](Images/resnet50_loss.png)
+
+The training loss continued to decrease throughout the training, whilst the validation loss was more inconsistent.  This is a strong sign of overfitting. 
+
+### ConvNeXt
+```
+Best validation balanced accuracy: 0.8522
+Best epoch: 25
+Epochs completed: 30
+```
+
+#### ConvNeXt training and validation accuracy
+![ConvNeXt_training_validation_accuracy](Images/convnext_accuracy.png)
+
+ConvNeXt training accuracy slowly increase throughout the 30 epochs reaching around 0.98. Validation accuracy peaked at 0.85. The two curves remained relatively similar throughout training. This demonstrates that ConvNeXt was able to learn useful features from the training data while maintaining reasonable generalisation to the validation set.
+
+#### ConvNeXt training and validation Loss
+![ConvNeXt_training_validation_loss](Images/convnext_loss.png)
+
+ConvNeXt training consistently decreased throughout training, whilst validation loss demonstrated some fluctuations but also generally followed the training loss. The small difference between the two curves suggests that there was mild overfitting.
+## Comparison of Training Behaviour
+As show through the accuracy and loss of both ResNet50 and ConvNeXt, ResNet50 provided a higher validation accuracy, but also showed a larger gap between training and validation performance. ConvNeXt, was slower to train but maintained a closer training and validation curve, suggesting a more stable generalisation.
+
+Although ConvNeXt demonstrate a better generalisation, ResNet50 still achieved the stronger final test. This demonstrates that the overfitting in the training curves did not necessarily caused for a better test set accuracy for ConvNeXt.
+
+## Confidence and Ambiguity
+Prediction confidence was also used to investigate whether incorrect predictions could be identified by lower SoftMax confidence.
+### ResNet50
+```
+Average confidence when correct: 0.9879 
+Average confidence when incorrect: 0.9596
+```
+### ConvNeXt
+```
+Average confidence when correct: 0.9285 
+Average confidence when incorrect: 0.9039
+```
+
+As seen in both neural networks, the prediction confidence does not reliably distinguish correct predictions form incorrect ones. ResNet50 produces a average confidence of 95.96% even when the prediction was wrong.
+
+A confidence based rejection system should not be used to determine whether or not a prediction requires human review.
+
+## Resource Profiling
+Both models measured the computational efficiency using count, peak GPU memory, inference latency, training time, validation time and full test evaluation time.
+
+| Resource                       | ResNet50      | ConvNeXt      |
+| ------------------------------ | ------------- | ------------- |
+| Trainable Parameters           | 23 505 858    | 27 818 594    |
+| Peak GPU VRAM                  | 275.59MB      | 302.94MB      |
+| Inference Latency              | 1.281ms/image | 1.447ms/image |
+| Average Training Time / Epoch  | 48.67s        | 60.31s        |
+| Total Training Time            | 1216.65s      | 1809.33s      |
+| Average Validation Time/ Epoch | 9.76s         | 10.72s        |
+| Total Validation Time          | 244.01s       | 321.74s       |
+| Full Test Evaluation Time      | 28,08s        | 24.71s        |
+RestNet50 contained around 4.3 million less parameters and required less GPU VRAM.
+
+## Qualitative Failure Case 
+Several failure modes were identified:
 
 
+## Engineering Recommendation
+As shown through the experimental results, ResNet50 is recommended over ConvNeXt for the current prototype. 
 
+ResNet50 has achieved a higher:
+- test accuracy
+- Macro Precision
+- Macro Recall
+- Macro F1
+- AUROC
+
+and also requires:
+- fewer trainable parameters
+- less GPU VRAM
+- lower inference latency
+- less training time per epoch
+
+Although ConvNeXt achieved a slightly higher AD recall, the improvement was not substantial enough to offset the lower overall test performance and greater computational requirements.
+
+The additional architectural complexity of ConvNeXt therefore did not provide a sufficient performance increase over the ResNet50 baseline implementation.
+
+However, both models should not be recommended for classifying Alzheimer disease. 
+
+Both models demonstrated:
+- low AD recall
+- substantial AD to NC false negatives
+- high confidence when incorrect
+- a significant validation and test generalisation gap
+
+I would recommend to retain ResNet50 as it demonstrated to be the more efficient baseline architecture, but focusing on improvement on the data representation and decision reliability over increasing the model complexity
+
+Possible next engineering steps include:
+- patient-level probability aggregation across the 20 slices
+- confidence calibration
+- class-specific decision thresholds
+- investigation of high-confidence false negatives
+- patient-level cross-validation
+- external dataset validation
 ## References
 
 [1]

@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+'''
+Convnext bottlneck block
+'''
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -34,7 +37,7 @@ class Bottleneck(nn.Module):
         out += self.shortcut(x)
         out = F.relu(out)
         return out
-    
+ 
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=2):
         super(ResNet, self).__init__()
@@ -102,6 +105,11 @@ class LayerNorm(nn.Module):
 
         return x
 
+'''
+Stochastic depth
+
+Used to regularise during training
+'''
 class DropPath(nn.Module):
 
     def __init__(self, drop_prob=0.0):

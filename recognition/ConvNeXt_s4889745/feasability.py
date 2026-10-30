@@ -8,6 +8,10 @@ from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from torchvision import transforms
 
+'''
+This was used for the feasability checkoff
+'''
+
 
 # ---------------------------------------------------------
 # Configuration

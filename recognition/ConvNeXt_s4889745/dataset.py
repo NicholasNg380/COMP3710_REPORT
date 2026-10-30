@@ -22,6 +22,7 @@ def build_patient_split(data_dir, validation_ratio=0.2, seed=42):
     for class_name, label in class_map.items():
         class_dir = data_dir / class_name
 
+        # groups by patient id
         for image_path in class_dir.glob("*.jpeg"):
             patient_id = get_patient_id(image_path)
 
@@ -71,6 +72,7 @@ class ADNIDataset(Dataset):
     def __getitem__(self, index):
         sample = self.samples[index]
 
+        # turns image into grey scale
         image = Image.open(sample["path"]).convert("L")
         label = sample["label"]
 
@@ -79,15 +81,16 @@ class ADNIDataset(Dataset):
 
         return image, label
 
-class PerImageStandardise:
-    """Z-score each image using its own mean/std (operates on a tensor)."""
+# previous testing to find best runs
+"""class PerImageStandardise:
+    Z-score each image using its own mean/std (operates on a tensor).
     def __init__(self, eps=1e-5):
         self.eps = eps
 
     def __call__(self, x):
         return (x - x.mean()) / (x.std() + self.eps)
 
-NORM = PerImageStandardise()
+NORM = PerImageStandardise()"""
 
 train_samples, val_samples, train_patients, val_patients = build_patient_split(DATA_DIR)
 
@@ -126,9 +129,14 @@ val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
-'''
+
 assert train_patients.isdisjoint(val_patients), \
     "Patient leakage detected between training and validation sets"
+
+"""test_patients = set(
+    sample["patient_id"]
+    for sample in test_samples
+)
 
 print("Train patients:", len(train_patients))
 print("Validation patients:", len(val_patients))
@@ -138,11 +146,6 @@ print("Train images:", len(train_samples))
 print("Validation images:", len(val_samples))
 print("Test images:", len(test_samples))
 
-test_patients = set(
-    sample["patient_id"]
-    for sample in test_samples
-)
-
 assert train_patients.isdisjoint(test_patients), \
     "Patient leakage between training and test"
 
@@ -150,5 +153,4 @@ assert val_patients.isdisjoint(test_patients), \
     "Patient leakage between validation and test"
 
 print("Test patients:", len(test_patients))
-print("Test images:", len(test_samples))
-'''
+print("Test images:", len(test_samples))"""
