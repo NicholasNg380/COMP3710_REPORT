@@ -21,8 +21,11 @@ def train_ResNet50():
 
     num_epochs = 30
 
-    best_val_accuracy = 0.0
+    best_val_bal_acc = 0.0
     best_epoch = 0
+
+    patience = 10
+    epochs_since_improvement = 0
 
     train_losses = []
     train_accuracies = []
@@ -30,7 +33,15 @@ def train_ResNet50():
     val_losses = []
     val_accuracies = []
 
+    train_times = []
+    val_times = []
+
     for epoch in range(num_epochs):
+
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        train_start = time.perf_counter()
 
         model.train()
 
@@ -38,6 +49,7 @@ def train_ResNet50():
         running_correct = 0
         running_total = 0
 
+        # Training loop
         for images, labels in train_loader:
 
             images = images.to(device, non_blocking=True)
@@ -58,8 +70,15 @@ def train_ResNet50():
 
             scaler.scale(loss).backward()
 
-            scaler.step(optimizer)
+            scaler.unscale_(optimizer)
 
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                max_norm=1.0
+            )
+
+            scaler.step(optimizer)
+            
             scaler.update()
 
             running_loss += loss.item() * images.size(0)
@@ -70,9 +89,20 @@ def train_ResNet50():
 
             running_total += labels.size(0)
 
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        train_time = time.perf_counter() - train_start
+        train_times.append(train_time)
+
         epoch_loss = (running_loss / len(train_loader.dataset))
 
         epoch_accuracy = (running_correct / running_total)
+
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        val_start = time.perf_counter()
 
         model.eval()
 
@@ -80,8 +110,12 @@ def train_ResNet50():
         val_correct = 0
         val_total = 0
 
+        val_labels = []
+        val_predictions = []
+
         with torch.no_grad():
 
+            # Validation Loop
             for images, labels in val_loader:
 
                 images = images.to(device)
@@ -94,38 +128,93 @@ def train_ResNet50():
                 val_loss += (loss.item() * images.size(0))
 
                 _, predicted = torch.max(outputs, 1)
+
+                val_labels.extend(labels.cpu().tolist())
+
+                val_predictions.extend(predicted.cpu().tolist())
                 
                 val_correct += (predicted == labels).sum().item()
 
                 val_total += labels.size(0)
 
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        val_time = time.perf_counter() - val_start
+        val_times.append(val_time)
+
         val_epoch_loss = (val_loss / len(val_loader.dataset))
-
         val_accuracy = (val_correct / val_total)
-
+        val_bal_acc = balanced_accuracy_score(val_labels, val_predictions)
         train_losses.append(epoch_loss)
         train_accuracies.append(epoch_accuracy)
-
         val_losses.append(val_epoch_loss)
         val_accuracies.append(val_accuracy)
 
-        if val_accuracy > best_val_accuracy:
-
-            best_val_accuracy = val_accuracy
+        if val_bal_acc > best_val_bal_acc:
+            best_val_bal_acc = val_bal_acc
             best_epoch = epoch + 1
 
-            torch.save(model.state_dict(), "resnet50_best.pth")
+            epochs_since_improvement = 0
 
-            print(f"Saved new best model at epoch {best_epoch} with validation accuracy {best_val_accuracy:.4f}")
+            torch.save(
+                model.state_dict(),
+                "resnet50_best.pth"
+            )
+            print(
+                f"Saved new best ResNet50 at epoch "
+                f"{best_epoch} "
+                f"(val balanced acc "
+                f"{best_val_bal_acc:.4f}, "
+                f"val acc {val_accuracy:.4f})"
+            )
+        else:
+            epochs_since_improvement += 1
 
-        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
-
+        print(
+            f"Epoch {epoch+1}/{num_epochs} - "
+            f"Train Loss: {epoch_loss:.4f} - "
+            f"Train Accuracy: {epoch_accuracy:.4f} - "
+            f"Val Loss: {val_epoch_loss:.4f} - "
+            f"Val Accuracy: {val_accuracy:.4f} - "
+            f"Val Balanced Accuracy: {val_bal_acc:.4f} - "
+            f"Train Time: {train_time:.2f}s - "
+            f"Val Time: {val_time:.2f}s - "
+            f"LR: {optimizer.param_groups[0]['lr']:.6f}"
+        )
         scheduler.step()
 
-    print(f"Best validation accuracy: {best_val_accuracy:.4f} at epoch {best_epoch}"
-)
+        # Early stopping
+        if epochs_since_improvement >= patience:
+            print(
+                f"Early stopping at epoch "
+                f"{epoch + 1} "
+                f"(no balanced accuracy improvement "
+                f"for {patience} epochs)"
+            )
 
-    epochs = range(1, num_epochs + 1)
+            break
+
+    total_train_time = sum(train_times)
+    total_val_time = sum(val_times)
+
+    average_train_time = (total_train_time / len(train_times))
+
+    average_val_time = (total_val_time / len(val_times))
+
+    print("\nTiming Summary")
+
+    print(f"Total training time: {total_train_time:.2f} seconds")
+
+    print(f"Average training time/epoch: {average_train_time:.2f} seconds")
+
+    print(f"Total validation time: {total_val_time:.2f} seconds")
+
+    print(f"Average validation time/epoch: {average_val_time:.2f} seconds")
+
+    print(f"Best ResNet50 validation balanced accuracy: {best_val_bal_acc:.4f} at epoch {best_epoch}")
+    
+    epochs = range(1, len(train_losses) + 1)
 
     plt.figure()
     plt.plot(epochs, train_losses, label="Train Loss")
@@ -168,7 +257,15 @@ def train_ConvNeXt():
     val_losses = []
     val_accuracies = []
 
+    train_times = []
+    val_times = []
+
     for epoch in range(num_epochs):
+
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        train_start = time.perf_counter()
 
         model.train()
 
@@ -176,6 +273,7 @@ def train_ConvNeXt():
         running_correct = 0
         running_total = 0
 
+        # Training loop
         for images, labels in train_loader:
 
             images = images.to(device, non_blocking=True)
@@ -215,9 +313,20 @@ def train_ConvNeXt():
 
             running_total += labels.size(0)
 
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        train_time = time.perf_counter() - train_start
+        train_times.append(train_time)
+
         epoch_loss = (running_loss / len(train_loader.dataset))
 
         epoch_accuracy = (running_correct / running_total)
+
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        val_start = time.perf_counter()
 
         model.eval()
 
@@ -230,6 +339,7 @@ def train_ConvNeXt():
 
         with torch.no_grad():
 
+            # Validation Loop
             for images, labels in val_loader:
 
                 images = images.to(device)
@@ -251,27 +361,19 @@ def train_ConvNeXt():
 
                 val_total += labels.size(0)
 
+        if device.type == "cuda":
+            torch.cuda.synchronize()
+
+        val_time = time.perf_counter() - val_start
+        val_times.append(val_time)
+
         val_epoch_loss = (val_loss / len(val_loader.dataset))
-
         val_accuracy = (val_correct / val_total)
-
         val_bal_acc = balanced_accuracy_score(val_labels, val_predictions)
-
         train_losses.append(epoch_loss)
         train_accuracies.append(epoch_accuracy)
-
         val_losses.append(val_epoch_loss)
         val_accuracies.append(val_accuracy)
-
-        """if val_accuracy > best_val_accuracy:
-
-            best_val_accuracy = val_accuracy
-            best_epoch = epoch + 1
-
-            torch.save(model.state_dict(),"convnext_best.pth")
-
-            print(f"Saved new best ConvNeXt model at epoch {best_epoch} with validation accuracy {best_val_accuracy:.4f}"
-            )"""
 
         if val_bal_acc > best_val_bal_acc:
 
@@ -295,19 +397,51 @@ def train_ConvNeXt():
         else:
             epochs_since_improvement += 1
 
-
-        print(f"Epoch {epoch+1}/{num_epochs} - Train Loss: {epoch_loss:.4f} - Train Accuracy: {epoch_accuracy:.4f} - Val Loss: {val_epoch_loss:.4f} - Val Accuracy: {val_accuracy:.4f} - Val Balance Accuracy {val_bal_acc:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
-
+        print(
+                    f"Epoch {epoch+1}/{num_epochs} - "
+                    f"Train Loss: {epoch_loss:.4f} - "
+                    f"Train Accuracy: {epoch_accuracy:.4f} - "
+                    f"Val Loss: {val_epoch_loss:.4f} - "
+                    f"Val Accuracy: {val_accuracy:.4f} - "
+                    f"Val Balanced Accuracy: {val_bal_acc:.4f} - "
+                    f"Train Time: {train_time:.2f}s - "
+                    f"Val Time: {val_time:.2f}s - "
+                    f"LR: {optimizer.param_groups[0]['lr']:.6f}"
+                )
+        
         scheduler.step()
 
+        # Early stopping
         if epochs_since_improvement >= patience:
-            print(f"Early stopping at epoch {epoch+1} (no val loss improvement for {early_stopping.patience} epochs)")
+            print(
+                f"Early stopping at epoch "
+                f"{epoch + 1} "
+                f"(no balanced accuracy improvement "
+                f"for {patience} epochs)"
+            )
             break
 
-    print(f"Best ConvNeXt validation balanced accuracy: {best_val_bal_acc:.4f} at epoch {best_epoch}"
-    )
+    print(f"Best ConvNeXt validation balanced accuracy: {best_val_bal_acc:.4f} at epoch {best_epoch}")
 
-    #epochs = range(1, num_epochs + 1)
+    total_train_time = sum(train_times)
+    total_val_time = sum(val_times)
+
+    average_train_time = (total_train_time / len(train_times))
+    
+    average_val_time = (total_val_time / len(val_times))
+    
+    print("\nTiming Summary")
+    
+    print(f"Total training time: {total_train_time:.2f} seconds")
+    
+    print(f"Average training time/epoch: {average_train_time:.2f} seconds")
+    
+    print(f"Total validation time: {total_val_time:.2f} seconds")
+    
+    print(f"Average validation time/epoch: {average_val_time:.2f} seconds")
+    
+    print(f"Best ResNet50 validation balanced accuracy: {best_val_bal_acc:.4f} at epoch {best_epoch}")
+
     epochs = range(1, len(train_losses) + 1)
     
     plt.figure()
@@ -378,21 +512,13 @@ def evaluate_model(model, data_loader, device):
             all_probabilities.extend(probabilities[:, 1].cpu().tolist())
 
     accuracy = accuracy_score(all_labels, all_predictions)
-
     precision = precision_score(all_labels, all_predictions, average="macro")
-
     recall = recall_score( all_labels, all_predictions, average="macro")
-
     f1 = f1_score( all_labels, all_predictions, average="macro")
-
     precision_per_class = precision_score(all_labels, all_predictions, average=None, zero_division=0)
-
     recall_per_class = recall_score(all_labels, all_predictions, average=None, zero_division=0)
-
     auroc = roc_auc_score( all_labels, all_probabilities)
-
     cm = confusion_matrix( all_labels, all_predictions )
-
     average_loss = (running_loss / total_samples)
 
     return {"loss": average_loss, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1, "precision_per_class": precision_per_class, 
@@ -520,7 +646,16 @@ if __name__ == "__main__":
         print("Invalid choice. Enter 'resnet' or 'convnext'.")
         raise SystemExit
 
+    eval_start = time.perf_counter()
+
     results = evaluate_model(model, test_loader, device)
+
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+
+    evaluation_time = (time.perf_counter() - eval_start)
+
+    print(f"Total evaluation time: {evaluation_time:.2f} seconds")
 
     analyse_confidence(results)
 

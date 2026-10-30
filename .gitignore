@@ -3,3 +3,4 @@ ADNI/
 *.pth
 *.pt
 __pycache__/
+.obsidian/
