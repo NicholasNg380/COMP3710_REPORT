@@ -8,8 +8,7 @@ ConvNeXt is a modern CNN that build on top of the classic ResNet. It incorporate
 
 The baseline model is ResNet50 [1], a deep CNN built around residual connections. ResNet50 uses bottleneck blocks 3 layers of convolutions are used. A beginning 1x1 convolution that reduces the channel count, a 3x3 convolution to perform spatial processing and a final 1x1 convolution to expand the channels again. They all use BatchNorm and ReLu activations throughout. It begins with a 7x7 stride-2 convolution and max pooling with the blocks [3, 4, 6, 3]. Resolution is halved and channels double widths at each stage. It ends with adaptive average pooling and a linear classifier. ConvNeXt keeps a similar macro-structure of four stages and residual blocks, but follows the design choices of Vision Transformers. A 4x4 stride 4 stem with a 7x7 depthwise convolution instead of the 3x3 convolution. Am inverted bottle neck expands the channels inside the block instead of narrowing them, GELU activation block, LayerNorm instead of BatchNorm, and other training aids such as layer scale and stochastic depth. 
 
-### Architecture for ResNet50 and ConvNeXt
-
+### Architecture for ResNet50 and ConvNeXt [2]
 ![Architecture](Images/architecture.png)
 
 #### ConvNeXt
@@ -88,10 +87,8 @@ The splits were:
 | Split      | Patients | Images | AD   | NC   |
 | ---------- | -------- | ------ | ---- | ---- |
 | Training   | 861      | 17 220 | 8320 | 8900 |
-| Validation | 215      | 4300   | 2080 | 2200 |
+| Validation | 215      | 4300   | 2080 | 2220 |
 | Test       | 450      | 9000   | 4460 | 4540 |
-
-
 ## Dependencies
 Ensure appropriate libraries are installed. 
 	torch 2.14.1+cu130
@@ -236,12 +233,17 @@ Both models measured the computational efficiency using count, peak GPU memory, 
 | Total Training Time            | 1216.65s      | 1809.33s      |
 | Average Validation Time/ Epoch | 9.76s         | 10.72s        |
 | Total Validation Time          | 244.01s       | 321.74s       |
-| Full Test Evaluation Time      | 28,08s        | 24.71s        |
+| Full Test Evaluation Time      | 28.08s        | 24.71s        |
 RestNet50 contained around 4.3 million less parameters and required less GPU VRAM.
 
 ## Qualitative Failure Case 
-Several failure modes were identified:
-
+Several failure cases were identified:
+### Failure case 1: Missed AD cases (false negatives)
+Both models misses a large amount of AD slices. ResNet50 classified 1,932 of 4,460 AD slices as NC (43.3%), and ConvNeXt classified 1,813 (40.7%). This presents a dangerous error, as a missed AD case would receive no further review. This is also the opposite to the training behaviour. Both models reached around a 98% training accuracy, so failure to generalise rather than failure to learn classes.
+### Failure case 2: AD predicted as NC
+1439612_105.jpeg was incorrectly classified as NC even though the true class was AD. The image may contain only subtle structural changes, causing the model to rely on features that resemble the NC class. This represents the most common failure mode observed in the test results and is important because it corresponds to an AD false negative.
+### Failure Case 3: NC predicted as AD
+1291468_104.jpeg was incorrectly classified as AD. The model may have responded to image characteristics that it had learned to associate with AD. This shows that some visual features are shared between classes and can lead to false-positive predictions.
 
 ## Engineering Recommendation
 As shown through the experimental results, ResNet50 is recommended over ConvNeXt for the current prototype. 
@@ -270,6 +272,7 @@ Both models demonstrated:
 - substantial AD to NC false negatives
 - high confidence when incorrect
 - a significant validation and test generalisation gap
+- neither reached the 0.8 acceptance rate
 
 I would recommend to retain ResNet50 as it demonstrated to be the more efficient baseline architecture, but focusing on improvement on the data representation and decision reliability over increasing the model complexity
 
