@@ -9,7 +9,7 @@ ConvNeXt is a modern CNN that build on top of the classic ResNet. It incorporate
 The baseline model is ResNet50 [1], a deep CNN built around residual connections. ResNet50 uses bottleneck blocks 3 layers of convolutions are used. A beginning 1x1 convolution that reduces the channel count, a 3x3 convolution to perform spatial processing and a final 1x1 convolution to expand the channels again. They all use BatchNorm and ReLu activations throughout. It begins with a 7x7 stride-2 convolution and max pooling with the blocks [3, 4, 6, 3]. Resolution is halved and channels double widths at each stage. It ends with adaptive average pooling and a linear classifier. ConvNeXt keeps a similar macro-structure of four stages and residual blocks, but follows the design choices of Vision Transformers. A 4x4 stride 4 stem with a 7x7 depthwise convolution instead of the 3x3 convolution. Am inverted bottle neck expands the channels inside the block instead of narrowing them, GELU activation block, LayerNorm instead of BatchNorm, and other training aids such as layer scale and stochastic depth. 
 
 ### Architecture for ResNet50 and ConvNeXt [2]
-![Architecture](./ConvNeXt_s488975/Images/architecture.png)
+![Architecture](Images/architecture.png)
 
 #### ConvNeXt
 ```
@@ -174,12 +174,12 @@ Epochs completed: 25
 
 ### Training Curves
 #### ResNet50 training and validation accuracy
-![ResNet50_training_validation_accuracy](./ConvNeXt_s488975/Images/resnet50_accuracy.png)
+![ResNet50_training_validation_accuracy](Images/resnet50_accuracy.png)
 
 As show in the accuracy curve, ResNet50 learned the training data quickly, whilst it approached 1.0. The validation accuracy was steadily increasing whilst bouncing between 0.5 and 0.85, but became more stable at around 12 epochs approaching 0.9 accuracy. This gape between the training and validation accuracy indicates the the training data was fitted more coley compared to the unseen validation data.
 
 #### ResNet50 training and validation Loss
-![ResNet50_training_validation_loss](./ConvNeXt_s488975/Images/resnet50_loss.png)
+![ResNet50_training_validation_loss](Images/resnet50_loss.png)
 
 The training loss continued to decrease throughout the training, whilst the validation loss was more inconsistent.  This is a strong sign of overfitting. 
 
@@ -191,12 +191,12 @@ Epochs completed: 30
 ```
 
 #### ConvNeXt training and validation accuracy
-![ConvNeXt_training_validation_accuracy](./ConvNeXt_s488975/Images/convnext_accuracy.png)
+![ConvNeXt_training_validation_accuracy](Images/convnext_accuracy.png)
 
 ConvNeXt training accuracy slowly increase throughout the 30 epochs reaching around 0.98. Validation accuracy peaked at 0.85. The two curves remained relatively similar throughout training. This demonstrates that ConvNeXt was able to learn useful features from the training data while maintaining reasonable generalisation to the validation set.
 
 #### ConvNeXt training and validation Loss
-![ConvNeXt_training_validation_loss](./ConvNeXt_s488975/Images/convnext_loss.png)
+![ConvNeXt_training_validation_loss](Images/convnext_loss.png)
 
 ConvNeXt training consistently decreased throughout training, whilst validation loss demonstrated some fluctuations but also generally followed the training loss. The small difference between the two curves suggests that there was mild overfitting.
 ## Comparison of Training Behaviour
